@@ -6,3 +6,4 @@ audit_log.db
 *.db
 .DS_Store
 venv/
+test_*.py

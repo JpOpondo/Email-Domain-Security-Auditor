@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Email Domain Security Auditor</title>
+<style>
+  :root {
+    --bg:        #0d1117;
+    --surface:   #161b22;
+    --border:    #30363d;
+    --text:      #e6edf3;
+    --muted:     #8b949e;
+    --secure:    #3fb950;
+    --warning:   #d29922;
+    --critical:  #f85149;
+    --missing:   #a371f7;
+    --accent:    #58a6ff;
+    --font-mono: "JetBrains Mono", "Fira Code", "Courier New", monospace;
+    --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-sans);
+    min-height: 100vh;
+    padding: 0 1rem 4rem;
+  }
+
+  header {
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 2.5rem 0 1.5rem;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: flex-end;
+    gap: 1.2rem;
+  }
+  .logo-mark {
+    width: 44px; height: 44px;
+    background: var(--accent);
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.3rem; flex-shrink: 0;
+  }
+  .header-text h1 {
+    font-size: 1.25rem; font-weight: 700; letter-spacing: -.01em;
+  }
+  .header-text p {
+    font-size: .8rem; color: var(--muted); margin-top: .2rem;
+  }
+
+  .tabs {
+    max-width: 860px; margin: 1.8rem auto 0;
+    display: flex; gap: .25rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .tab-btn {
+    background: none; border: none; cursor: pointer;
+    color: var(--muted); font-size: .85rem; font-weight: 600;
+    padding: .55rem 1.1rem .65rem;
+    border-bottom: 2px solid transparent;
+    transition: color .15s, border-color .15s;
+    margin-bottom: -1px;
+  }
+  .tab-btn:hover { color: var(--text); }
+  .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  .search-wrap {
+    max-width: 860px;
+    margin: 2rem auto 0;
+  }
+  .search-row {
+    display: flex;
+    gap: .6rem;
+    align-items: stretch;
+  }
+  input[type="text"] {
+    flex: 1;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: .95rem;
+    padding: .7rem 1rem;
+    outline: none;
+    transition: border-color .15s;
+  }
+  input[type="text"]:focus { border-color: var(--accent); }
+  input[type="text"]::placeholder { color: var(--muted); }
+  button.audit-btn {
+    background: var(--accent);
+    color: #0d1117;
+    border: none;
+    border-radius: 6px;
+    font-weight: 700;
+    font-size: .9rem;
+    padding: 0 1.4rem;
+    cursor: pointer;
+    transition: opacity .15s;
+    white-space: nowrap;
+  }
+  button.audit-btn:hover { opacity: .85; }
+  button.audit-btn:disabled { opacity: .45; cursor: not-allowed; }
+
+  .selectors-row { margin-top: .6rem; }
+  .selectors-row label {
+    font-size: .78rem; color: var(--muted); display: block; margin-bottom: .3rem;
+  }
+  .selectors-row input { width: 100%; font-size: .82rem; padding: .5rem .9rem; }
+
+  #status {
+    max-width: 860px; margin: 1.2rem auto 0;
+    font-size: .85rem; color: var(--muted);
+    min-height: 1.2rem;
+  }
+
+  .overall-banner {
+    max-width: 860px; margin: 1.5rem auto 0;
+    border-radius: 8px;
+    padding: 1rem 1.4rem;
+    border-left: 4px solid;
+    display: none;
+  }
+  .overall-banner .domain-label { font-size: .78rem; color: var(--muted); margin-bottom: .25rem; }
+  .overall-banner .domain-name { font-size: 1.15rem; font-weight: 700; font-family: var(--font-mono); }
+  .overall-banner .summary-text { font-size: .85rem; margin-top: .4rem; color: var(--muted); }
+  .overall-banner.Secure   { border-color: var(--secure);   background: #0d2b17; }
+  .overall-banner.Warning  { border-color: var(--warning);  background: #2b1f06; }
+  .overall-banner.Critical { border-color: var(--critical); background: #2b0d0d; }
+  .overall-banner.Missing  { border-color: var(--missing);  background: #1c0f2e; }
+
+  .cards {
+    max-width: 860px; margin: 1.2rem auto 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+    gap: 1rem;
+  }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    display: none;
+  }
+  .card-header {
+    display: flex; align-items: center; gap: .7rem;
+    padding: .75rem 1rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .card-header .proto { font-weight: 700; font-size: .95rem; }
+  .card-header .rfc   { font-size: .72rem; color: var(--muted); }
+  .badge {
+    margin-left: auto;
+    font-size: .72rem; font-weight: 700;
+    padding: .2rem .6rem; border-radius: 20px;
+    text-transform: uppercase; letter-spacing: .04em;
+  }
+  .badge.Secure   { background: #122318; color: var(--secure); }
+  .badge.Warning  { background: #1f1700; color: var(--warning); }
+  .badge.Critical { background: #200a0a; color: var(--critical); }
+  .badge.Missing  { background: #160b2e; color: var(--missing); }
+
+  .card-body { padding: .85rem 1rem; }
+
+  .record-box {
+    background: #0d1117;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    font-family: var(--font-mono);
+    font-size: .72rem;
+    color: var(--muted);
+    padding: .5rem .75rem;
+    word-break: break-all;
+    margin-bottom: .75rem;
+  }
+
+  .findings, .remediations { margin-bottom: .75rem; }
+  .section-label {
+    font-size: .72rem; font-weight: 700;
+    text-transform: uppercase; letter-spacing: .06em;
+    color: var(--muted); margin-bottom: .4rem;
+  }
+  .finding-item {
+    font-size: .82rem; line-height: 1.5;
+    padding: .3rem 0 .3rem .9rem;
+    border-left: 2px solid var(--border);
+    margin-bottom: .35rem;
+    color: var(--text);
+  }
+  .finding-item.Critical { border-color: var(--critical); }
+  .finding-item.Warning  { border-color: var(--warning); }
+  .finding-item.Missing  { border-color: var(--missing); }
+  .finding-item.Secure   { border-color: var(--secure); }
+
+  .remed-item {
+    font-size: .8rem; line-height: 1.5;
+    color: var(--muted);
+    padding: .25rem 0 .25rem 1rem;
+    position: relative;
+  }
+  .remed-item::before { content: "→"; position: absolute; left: 0; color: var(--accent); }
+
+  .sel-table { width: 100%; border-collapse: collapse; font-size: .78rem; margin-bottom: .75rem; }
+  .sel-table th {
+    text-align: left; padding: .3rem .5rem;
+    color: var(--muted); font-weight: 600;
+    border-bottom: 1px solid var(--border);
+  }
+  .sel-table td { padding: .3rem .5rem; vertical-align: top; }
+  .sel-table tr:hover td { background: rgba(255,255,255,.02); }
+
+  .mx-table { width: 100%; border-collapse: collapse; font-size: .8rem; margin-bottom: .75rem; font-family: var(--font-mono); }
+  .mx-table th {
+    text-align: left; padding: .3rem .5rem;
+    color: var(--muted); font-weight: 600;
+    border-bottom: 1px solid var(--border);
+  }
+  .mx-table td { padding: .3rem .5rem; }
+  .resolve-ok  { color: var(--secure); }
+  .resolve-bad { color: var(--critical); }
+
+  .error-box {
+    max-width: 860px; margin: 1.5rem auto 0;
+    background: #200a0a; border: 1px solid var(--critical);
+    border-radius: 8px; padding: 1rem 1.2rem;
+    font-size: .85rem; color: var(--critical);
+    display: none;
+  }
+
+  .history-wrap { max-width: 860px; margin: 1.5rem auto 0; }
+  .history-toolbar { display: flex; gap: .6rem; align-items: center; margin-bottom: 1rem; }
+  .history-toolbar input { flex:1; font-size:.82rem; padding:.45rem .9rem; }
+  .history-toolbar button {
+    background: var(--surface); border: 1px solid var(--border);
+    color: var(--text); border-radius: 6px; font-size:.82rem;
+    padding: .45rem .9rem; cursor: pointer;
+  }
+  .history-toolbar button:hover { border-color: var(--accent); color: var(--accent); }
+  .hist-table {
+    width: 100%; border-collapse: collapse; font-size: .82rem;
+    background: var(--surface); border-radius: 8px; overflow: hidden;
+    border: 1px solid var(--border);
+  }
+  .hist-table th {
+    text-align: left; padding: .6rem 1rem;
+    color: var(--muted); font-weight: 600; font-size: .75rem;
+    text-transform: uppercase; letter-spacing: .05em;
+    border-bottom: 1px solid var(--border); background: #0d1117;
+  }
+  .hist-table td { padding: .6rem 1rem; border-bottom: 1px solid var(--border); }
+  .hist-table tr:last-child td { border-bottom: none; }
+  .hist-table tr:hover td { background: rgba(255,255,255,.02); cursor: pointer; }
+  .hist-table .domain-cell { font-family: var(--font-mono); color: var(--accent); }
+  .hist-table .date-cell { color: var(--muted); font-size: .75rem; }
+  .hist-empty { text-align: center; color: var(--muted); padding: 2rem; }
+  .log-pill {
+    display: inline-block; font-size: .72rem; color: var(--muted);
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 20px; padding: .15rem .65rem; margin-left: .6rem; vertical-align: middle;
+  }
+
+  @media (max-width: 500px) {
+    .cards { grid-template-columns: 1fr; }
+    .search-row { flex-direction: column; }
+    button.audit-btn { padding: .75rem; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo-mark">🔒</div>
+  <div class="header-text">
+    <h1>Email Domain Security Auditor</h1>
+    <p>SPF · DKIM · DMARC · MX — DNS misconfiguration analysis &amp; remediation</p>
+  </div>
+</header>
+
+<div class="tabs">
+  <button class="tab-btn active" onclick="switchTab('audit', this)">🔍 Audit</button>
+  <button class="tab-btn" onclick="switchTab('history', this)">🗂 History</button>
+</div>
+
+<div id="tab-audit" class="tab-panel active">
+
+<div class="search-wrap">
+  <div class="search-row">
+    <input type="text" id="domain-input" placeholder="Enter domain (e.g. example.com)" autocomplete="off" spellcheck="false"/>
+    <button class="audit-btn" id="audit-btn" onclick="runAudit()">Audit</button>
+  </div>
+  <div class="selectors-row">
+    <label for="selectors-input">Custom DKIM selectors (comma-separated, optional)</label>
+    <input type="text" id="selectors-input" placeholder="google, mail, selector1, selector2"/>
+  </div>
+</div>
+
+<div id="status"></div>
+<div class="error-box" id="error-box"></div>
+
+<div class="overall-banner" id="overall-banner">
+  <div class="domain-label">Domain audited</div>
+  <div class="domain-name" id="banner-domain"></div>
+  <div class="summary-text" id="banner-summary"></div>
+  <div id="log-pill-wrap" style="margin-top:.4rem"></div>
+</div>
+
+<div class="cards" id="cards">
+  <div class="card" id="card-spf">
+    <div class="card-header">
+      <span class="proto">SPF</span>
+      <span class="rfc">RFC 7208</span>
+      <span class="badge" id="badge-spf"></span>
+    </div>
+    <div class="card-body" id="body-spf"></div>
+  </div>
+
+  <div class="card" id="card-dkim">
+    <div class="card-header">
+      <span class="proto">DKIM</span>
+      <span class="rfc">RFC 6376</span>
+      <span class="badge" id="badge-dkim"></span>
+    </div>
+    <div class="card-body" id="body-dkim"></div>
+  </div>
+
+  <div class="card" id="card-dmarc">
+    <div class="card-header">
+      <span class="proto">DMARC</span>
+      <span class="rfc">RFC 7489</span>
+      <span class="badge" id="badge-dmarc"></span>
+    </div>
+    <div class="card-body" id="body-dmarc"></div>
+  </div>
+
+  <div class="card" id="card-mx">
+    <div class="card-header">
+      <span class="proto">MX</span>
+      <span class="rfc">RFC 1034/1035</span>
+      <span class="badge" id="badge-mx"></span>
+    </div>
+    <div class="card-body" id="body-mx"></div>
+  </div>
+</div>
+
+</div><!-- end tab-audit -->
+
+<div id="tab-history" class="tab-panel">
+  <div class="history-wrap">
+    <div class="history-toolbar">
+      <input type="text" id="hist-filter" placeholder="Filter by domain…" oninput="loadHistory()"/>
+      <button onclick="loadHistory()">↻ Refresh</button>
+    </div>
+    <div id="hist-content"></div>
+  </div>
+</div><!-- end tab-history -->
+
+<script>
+const ICONS = { Secure:"✅", Warning:"⚠️", Critical:"🔴", Missing:"❌" };
+
+function switchTab(name, btn) {
+  document.querySelectorAll(".tab-panel").forEach(p => p.classList.remove("active"));
+  document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+  document.getElementById("tab-" + name).classList.add("active");
+  btn.classList.add("active");
+  if (name === "history") loadHistory();
+}
+
+async function runAudit() {
+  const domain = document.getElementById("domain-input").value.trim();
+  if (!domain) { setStatus("Please enter a domain."); return; }
+
+  const selectors = document.getElementById("selectors-input").value.trim();
+  const btn = document.getElementById("audit-btn");
+  btn.disabled = true;
+  setStatus("🔍 Querying DNS records…");
+  hideAll();
+
+  try {
+    const res = await fetch("/audit", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ domain, selectors }),
+    });
+    const data = await res.json();
+    if (data.error) { showError(data.error); return; }
+    renderReport(data);
+    setStatus("");
+  } catch (e) {
+    showError("Request failed: " + e.message);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function renderReport(r) {
+  const banner = document.getElementById("overall-banner");
+  banner.className = "overall-banner " + r.overall_risk;
+  banner.style.display = "block";
+  document.getElementById("banner-domain").textContent = r.domain;
+  document.getElementById("banner-summary").textContent = ICONS[r.overall_risk] + "  " + r.summary;
+
+  const pillWrap = document.getElementById("log-pill-wrap");
+  if (pillWrap) {
+    pillWrap.innerHTML = r.session_id
+      ? `<span class="log-pill">💾 saved as session #${r.session_id}</span>`
+      : "";
+  }
+
+  renderSection("spf",   r.spf,   renderStandard);
+  renderSection("dkim",  r.dkim,  renderDkim);
+  renderSection("dmarc", r.dmarc, renderStandard);
+  renderSection("mx",    r.mx,    renderMx);
+}
+
+function renderSection(key, data, renderer) {
+  const card  = document.getElementById("card-" + key);
+  const badge = document.getElementById("badge-" + key);
+  const body  = document.getElementById("body-"  + key);
+  badge.textContent = data.risk;
+  badge.className = "badge " + data.risk;
+  body.innerHTML = renderer(data);
+  card.style.display = "block";
+}
+
+function renderStandard(d) {
+  let html = "";
+  if (d.record) html += `<div class="record-box">${esc(d.record)}</div>`;
+  html += findings(d.findings, d.risk);
+  html += remediations(d.remediation);
+  return html;
+}
+
+function renderDkim(d) {
+  let html = "";
+  const found = Object.entries(d.selectors || {}).filter(([,v]) => v.record);
+  if (found.length) {
+    html += `<table class="sel-table"><thead><tr><th>Selector</th><th>Risk</th><th>Note</th></tr></thead><tbody>`;
+    for (const [sel, info] of found) {
+      html += `<tr>
+        <td style="font-family:var(--font-mono)">${esc(sel)}</td>
+        <td><span class="badge ${info.risk}" style="font-size:.65rem">${info.risk}</span></td>
+        <td style="color:var(--muted);font-size:.75rem">${esc(info.note)}</td>
+      </tr>`;
+    }
+    html += "</tbody></table>";
+  }
+  html += findings(d.findings, d.risk);
+  html += remediations(d.remediation);
+  return html;
+}
+
+function renderMx(d) {
+  let html = "";
+  if (d.records && d.records.length) {
+    html += `<table class="mx-table"><thead><tr><th>Priority</th><th>Host</th><th>Resolves</th></tr></thead><tbody>`;
+    for (const r of d.records) {
+      html += `<tr>
+        <td>${r.priority}</td>
+        <td>${esc(r.host)}</td>
+        <td class="${r.resolves ? 'resolve-ok' : 'resolve-bad'}">${r.resolves ? "✓" : "✗"}</td>
+      </tr>`;
+    }
+    html += "</tbody></table>";
+  }
+  html += findings(d.findings, d.risk);
+  html += remediations(d.remediation);
+  return html;
+}
+
+function findings(list, risk) {
+  if (!list || !list.length) return "";
+  let html = `<div class="findings"><div class="section-label">Findings</div>`;
+  for (const f of list) html += `<div class="finding-item ${risk}">${esc(f)}</div>`;
+  return html + "</div>";
+}
+
+function remediations(list) {
+  if (!list || !list.length) return "";
+  let html = `<div class="remediations"><div class="section-label">Remediation</div>`;
+  for (const r of list) html += `<div class="remed-item">${esc(r)}</div>`;
+  return html + "</div>";
+}
+
+function esc(s) {
+  return String(s)
+    .replace(/&/g,"&amp;").replace(/</g,"&lt;")
+    .replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+}
+
+function setStatus(msg) { document.getElementById("status").textContent = msg; }
+
+function hideAll() {
+  document.getElementById("overall-banner").style.display = "none";
+  document.getElementById("error-box").style.display = "none";
+  ["spf","dkim","dmarc","mx"].forEach(k => {
+    document.getElementById("card-" + k).style.display = "none";
+  });
+}
+
+function showError(msg) {
+  const box = document.getElementById("error-box");
+  box.textContent = "⚠ " + msg;
+  box.style.display = "block";
+  setStatus("");
+}
+
+document.getElementById("domain-input").addEventListener("keydown", e => {
+  if (e.key === "Enter") runAudit();
+});
+
+async function loadHistory() {
+  const filter  = (document.getElementById("hist-filter")?.value || "").trim();
+  const url     = filter ? `/history?domain=${encodeURIComponent(filter)}` : "/history";
+  const content = document.getElementById("hist-content");
+  content.innerHTML = '<div class="hist-empty">Loading…</div>';
+  try {
+    const res  = await fetch(url);
+    const rows = await res.json();
+    if (!rows.length) {
+      content.innerHTML = '<div class="hist-empty">No audit history yet.</div>';
+      return;
+    }
+    let html = `<table class="hist-table"><thead><tr>
+      <th>#</th><th>Domain</th><th>Overall Risk</th><th>Date (UTC)</th>
+    </tr></thead><tbody>`;
+    for (const r of rows) {
+      const dt = new Date(r.timestamp * 1000).toISOString().replace("T"," ").slice(0,19);
+      html += `<tr onclick="loadHistoryEntry(${r.session_id})">
+        <td style="color:var(--muted)">${r.session_id}</td>
+        <td class="domain-cell">${esc(r.target_domain)}</td>
+        <td><span class="badge ${r.overall_risk_score}" style="font-size:.7rem">${r.overall_risk_score}</span></td>
+        <td class="date-cell">${dt}</td>
+      </tr>`;
+    }
+    html += "</tbody></table>";
+    content.innerHTML = html;
+  } catch(e) {
+    content.innerHTML = `<div class="hist-empty">Error: ${esc(e.message)}</div>`;
+  }
+}
+
+async function loadHistoryEntry(id) {
+  const auditTab = document.querySelector('.tab-btn');
+  switchTab('audit', auditTab);
+  setStatus("Loading session #" + id + "…");
+  try {
+    const res  = await fetch("/history/" + id);
+    const data = await res.json();
+    if (data.error) { showError(data.error); return; }
+    hideAll();
+    renderReport(data);
+    setStatus("");
+  } catch(e) {
+    showError("Failed to load session: " + e.message);
+  }
+}
+</script>
+</body>
+</html>
